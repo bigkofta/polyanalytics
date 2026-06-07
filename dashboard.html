@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Falcon Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080c14;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;min-height:100vh}
+:root{--accent:#6366f1;--accent2:#8b5cf6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--card:#0f1623;--border:#1e293b;--muted:#64748b}
+.header{background:#0a0f1a;border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.logo{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.header h1{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.pill{background:#1e293b;color:#94a3b8;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:#0a0f1a;padding:0 24px;overflow-x:auto}
+.tab{padding:12px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;white-space:nowrap;flex-shrink:0}
+.tab:hover{color:#e2e8f0}.tab.active{color:#e2e8f0;border-bottom-color:var(--accent)}
+.content{padding:24px;max-width:1600px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:14px}
+.stat-val{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;user-select:none}
+thead th.sortable{cursor:pointer}
+thead th.sortable:hover{color:#e2e8f0}
+thead th.sort-asc::after{content:' ↑';color:var(--accent)}
+thead th.sort-desc::after{content:' ↓';color:var(--accent)}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:.1s}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody td{padding:9px 12px;color:#cbd5e1;white-space:nowrap}
+
+/* Wallet links */
+.wallet-link{font-family:monospace;font-size:12px;color:#818cf8;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.wallet-link:hover{color:#a5b4fc;text-decoration:underline}
+.wallet-link .copy-btn{opacity:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px;transition:.1s}
+td:hover .copy-btn{opacity:1}
+.copy-btn:hover{color:#e2e8f0!important}
+
+/* Wallet hover card */
+#wallet-hovercard{position:fixed;z-index:9999;background:#0f1623;border:1px solid #334155;border-radius:12px;padding:16px;min-width:260px;box-shadow:0 8px 32px rgba(0,0,0,.6);pointer-events:none;opacity:0;transition:opacity .15s;font-size:12px}
+#wallet-hovercard.visible{opacity:1;pointer-events:auto}
+#wallet-hovercard .wh-addr{font-family:monospace;font-size:11px;color:#64748b;margin-bottom:10px;word-break:break-all}
+#wallet-hovercard .wh-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+#wallet-hovercard .wh-stat{background:#131c2e;border-radius:8px;padding:8px 10px}
+#wallet-hovercard .wh-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+#wallet-hovercard .wh-val{font-size:15px;font-weight:700;letter-spacing:-.3px}
+#wallet-hovercard .wh-actions{display:flex;gap:6px}
+#wallet-hovercard .wh-btn{flex:1;padding:6px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;text-align:center;display:block}
+#wallet-hovercard .wh-btn-pm{background:#1e293b;color:#818cf8}
+#wallet-hovercard .wh-btn-360{background:#312e81;color:#c7d2fe}
+#wallet-hovercard .wh-spinner{text-align:center;color:#64748b;padding:12px 0;font-size:11px}
+
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px}
+.badge-green{background:#052e16;color:#4ade80}
+.badge-red{background:#2d0a0a;color:#f87171}
+.badge-amber{background:#2d1a00;color:#fbbf24}
+.badge-blue{background:#0a1628;color:#60a5fa}
+.badge-purple{background:#1a0a28;color:#a78bfa}
+.badge-elite{background:linear-gradient(135deg,#1a0a28,#0a1628);color:#c4b5fd;border:1px solid #4c1d95}
+.pos{color:#4ade80}.neg{color:#f87171}
+
+/* Filters */
+.filters{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.filters-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:12px}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px}
+.filter-label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+input,select{background:#1a2235;border:1px solid var(--border);border-radius:8px;color:#e2e8f0;font-size:13px;padding:8px 12px;outline:none;transition:.15s;min-width:0}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+input[type=number]{width:120px}
+input[type=date]{width:150px}
+input[type=text]{width:200px}
+.btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;font-size:13px;border:none;border-radius:8px;cursor:pointer;padding:9px 20px;transition:.15s;white-space:nowrap}
+.btn:hover{opacity:.85}.btn:active{opacity:.7}
+.btn-ghost{background:#1e293b;color:#94a3b8;font-weight:600}
+.btn-ghost:hover{color:#e2e8f0;background:#263447}
+
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.section-title{font-size:15px;font-weight:700}
+.result-count{font-size:12px;color:var(--muted)}
+.refresh-btn{font-size:11px;color:#94a3b8;cursor:pointer;padding:4px 10px;border-radius:6px;background:#1e293b;border:none;transition:.15s}
+.refresh-btn:hover{color:#e2e8f0;background:#263447}
+
+.rank{font-weight:700;font-size:12px;width:28px;display:inline-block;text-align:right}
+.rank.g{color:#f59e0b}.rank.s{color:#94a3b8}.rank.b{color:#b45309}
+
+.loading{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.empty{text-align:center;padding:32px;color:var(--muted);font-size:13px}
+.err{background:#2d0a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px;color:#fca5a5;font-size:13px;margin-bottom:12px}
+
+/* Wallet 360 */
+.w360-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:16px}
+.w360-stat{background:#131d2e;border:1px solid var(--border);border-radius:8px;padding:12px}
+.w360-label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;margin-bottom:5px}
+.w360-val{font-size:15px;font-weight:700}
+.hero-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.hero-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.hero-label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.hero-val{font-size:22px;font-weight:800}
+
+/* Social */
+.social-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px}
+.social-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:12px}
+.smet{background:#131d2e;border-radius:6px;padding:8px 10px}
+.smet .sk{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px;font-weight:600}
+.smet .sv{font-size:16px;font-weight:700}
+
+@media(max-width:700px){.g2,.g3,.g4,.g5{grid-template-columns:1fr}.content{padding:12px}.filter-row{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🦅</div>
+  <h1>Falcon</h1>
+  <span class="pill">LIVE</span>
+  <span class="pill" id="last-updated" style="margin-left:auto">—</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="overview">Overview</div>
+  <div class="tab" data-tab="leaderboard">Leaderboard</div>
+  <div class="tab" data-tab="hscore">H-Score</div>
+  <div class="tab" data-tab="markets">Markets</div>
+  <div class="tab" data-tab="trades">Trades</div>
+  <div class="tab" data-tab="wallet">Wallet 360</div>
+  <div class="tab" data-tab="social">Social Pulse</div>
+  <div class="tab" data-tab="kalshi">Kalshi</div>
+</div>
+
+<div class="content">
+
+<!-- ── OVERVIEW ─────────────────────────────────────────────────────── -->
+<div class="page active" id="page-overview">
+  <div class="grid g5" style="margin-bottom:18px">
+    <div class="card"><div class="card-title">H-Score #1 PnL (15d)</div><div class="stat-val pos" id="ov-pnl">—</div><div class="stat-sub" id="ov-pnl-w">—</div></div>
+    <div class="card"><div class="card-title">H-Score #1 ROI (15d)</div><div class="stat-val pos" id="ov-roi">—</div><div class="stat-sub" id="ov-roi-w">—</div></div>
+    <div class="card"><div class="card-title">H-Score #1 Win Rate</div><div class="stat-val" id="ov-wr">—</div><div class="stat-sub" id="ov-wr-w">—</div></div>
+    <div class="card"><div class="card-title">Leaderboard #1 (Today)</div><div class="stat-val pos" id="ov-today">—</div><div class="stat-sub" id="ov-today-w">—</div></div>
+    <div class="card"><div class="card-title">Open Markets $10k+</div><div class="stat-val" id="ov-mkt">—</div><div class="stat-sub">active right now</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">🏆 H-Score Top 10</div>
+        <button class="refresh-btn" onclick="loadHScore(true)">↻ Refresh</button>
+      </div>
+      <div class="tbl-wrap">
+        <table id="ov-hscore-tbl">
+          <thead><tr>
+            <th>#</th>
+            <th>Wallet</th>
+            <th class="sortable" data-col="h_score" data-tbl="ov-hs">H-Score</th>
+            <th class="sortable" data-col="roi_pct_15d" data-tbl="ov-hs">ROI 15d</th>
+            <th class="sortable" data-col="total_pnl_15d" data-tbl="ov-hs">PnL 15d</th>
+            <th class="sortable" data-col="win_rate_pct_15d" data-tbl="ov-hs">Win%</th>
+            <th class="sortable" data-col="total_trades_15d" data-tbl="ov-hs">Trades</th>
+            <th>Tier</th>
+          </tr></thead>
+          <tbody id="ov-hs-body"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-header">
+        <div class="section-title">📈 Today's Top 10</div>
+        <button class="refresh-btn" onclick="loadOverviewLeader()">↻ Refresh</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Wallet</th>
+            <th class="sortable" data-col="total_pnl" data-tbl="ov-lb">PnL</th>
+            <th class="sortable" data-col="roi" data-tbl="ov-lb">ROI</th>
+            <th class="sortable" data-col="win_rate" data-tbl="ov-lb">Win%</th>
+            <th class="sortable" data-col="total_trades" data-tbl="ov-lb">Trades</th>
+          </tr></thead>
+          <tbody id="ov-lb-body"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LEADERBOARD ──────────────────────────────────────────────────── -->
+<div class="page" id="page-leaderboard">
+  <div class="filters">
+    <div class="filters-title">Filters</div>
+    <div class="filter-row">
+      <div class="filter-group">
+        <div class="filter-label">Period</div>
+        <select id="lb-period">
+          <option value="1d">Today (1d)</option>
+          <option value="3d">3 Days</option>
+          <option value="7d">7 Days</option>
+          <option value="30d">30 Days</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min PnL ($)</div>
+        <input type="number" id="lb-min-pnl" placeholder="e.g. 1000" value="">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min Win Rate (%)</div>
+        <input type="number" id="lb-min-wr" placeholder="e.g. 50" value="" min="0" max="100">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min Sharpe</div>
+        <input type="number" id="lb-min-sharpe" placeholder="e.g. 0.5" value="" step="0.1">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Wallet</div>
+        <input type="text" id="lb-wallet" placeholder="0x... (optional)">
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadLeaderboard()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Polymarket Leaderboard</div>
+      <span class="result-count" id="lb-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>Wallet</th>
+          <th class="sortable" data-col="total_pnl" data-tbl="lb">PnL</th>
+          <th class="sortable" data-col="roi" data-tbl="lb">ROI</th>
+          <th class="sortable" data-col="win_rate" data-tbl="lb">Win%</th>
+          <th class="sortable" data-col="total_trades" data-tbl="lb">Trades</th>
+          <th class="sortable" data-col="avg_trade_size" data-tbl="lb">Avg Size</th>
+          <th class="sortable" data-col="markets_traded" data-tbl="lb">Markets</th>
+          <th class="sortable" data-col="sharpe_ratio" data-tbl="lb">Sharpe</th>
+        </tr></thead>
+        <tbody id="lb-body"><tr><td colspan="9" class="loading">Set filters and click Search</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── H-SCORE ──────────────────────────────────────────────────────── -->
+<div class="page" id="page-hscore">
+  <div class="filters">
+    <div class="filters-title">H-Score Filters</div>
+    <div class="filter-row">
+      <div class="filter-group">
+        <div class="filter-label">Min Win Rate</div>
+        <input type="number" id="hs-min-wr" value="0.45" step="0.01" min="0" max="1">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Max Win Rate</div>
+        <input type="number" id="hs-max-wr" value="0.95" step="0.01" min="0" max="1">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min ROI</div>
+        <input type="number" id="hs-min-roi" value="0" step="0.01">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min PnL ($)</div>
+        <input type="number" id="hs-min-pnl" value="0">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min Trades</div>
+        <input type="number" id="hs-min-trades" value="30">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Max Trades</div>
+        <input type="number" id="hs-max-trades" value="100000">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Sort By</div>
+        <select id="hs-sort">
+          <option value="h_score">H-Score</option>
+          <option value="roi">ROI</option>
+          <option value="win_rate">Win Rate</option>
+          <option value="pnl">PnL</option>
+        </select>
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadHScorePage()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">🏆 H-Score Leaderboard</div>
+      <span class="result-count" id="hs-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>Wallet</th>
+          <th class="sortable" data-col="h_score" data-tbl="hs">H-Score</th>
+          <th class="sortable" data-col="roi_pct_15d" data-tbl="hs">ROI 15d</th>
+          <th class="sortable" data-col="total_pnl_15d" data-tbl="hs">PnL 15d</th>
+          <th class="sortable" data-col="win_rate_pct_15d" data-tbl="hs">Win%</th>
+          <th class="sortable" data-col="total_trades_15d" data-tbl="hs">Trades</th>
+          <th class="sortable" data-col="markets_traded_15d" data-tbl="hs">Markets</th>
+          <th class="sortable" data-col="sharpe_ratio_15d" data-tbl="hs">Sharpe</th>
+          <th class="sortable" data-col="total_volume_15d" data-tbl="hs">Volume</th>
+          <th>Tier</th>
+          <th>Trajectory</th>
+        </tr></thead>
+        <tbody id="hs-body"><tr><td colspan="12" class="loading">Set filters and click Search</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── MARKETS ──────────────────────────────────────────────────────── -->
+<div class="page" id="page-markets">
+  <div class="filters">
+    <div class="filters-title">Market Filters</div>
+    <div class="filter-row">
+      <div class="filter-group">
+        <div class="filter-label">Market Slug</div>
+        <input type="text" id="mkt-slug" placeholder="e.g. will-trump-win">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Min Volume ($)</div>
+        <input type="number" id="mkt-vol" value="10000">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Status</div>
+        <select id="mkt-closed">
+          <option value="False">Open</option>
+          <option value="True">Closed</option>
+          <option value="BOTH">All</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">End Date From</div>
+        <input type="date" id="mkt-date-min">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">End Date To</div>
+        <input type="date" id="mkt-date-max">
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadMarkets()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Markets</div>
+      <span class="result-count" id="mkt-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Question</th>
+          <th class="sortable" data-col="volume_total" data-tbl="mkt">Volume</th>
+          <th>Status</th>
+          <th class="sortable" data-col="end_date" data-tbl="mkt">End Date</th>
+          <th>Slug / Condition ID</th>
+        </tr></thead>
+        <tbody id="mkt-body"><tr><td colspan="5" class="loading">Set filters and click Search</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRADES ───────────────────────────────────────────────────────── -->
+<div class="page" id="page-trades">
+  <div class="filters">
+    <div class="filters-title">Trade Filters</div>
+    <div class="filter-row">
+      <div class="filter-group">
+        <div class="filter-label">Wallet</div>
+        <input type="text" id="tr-wallet" placeholder="0x... or ALL" value="ALL">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Market Slug</div>
+        <input type="text" id="tr-slug" placeholder="optional">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Side</div>
+        <select id="tr-side">
+          <option value="ALL">All</option>
+          <option value="BUY">BUY only</option>
+          <option value="SELL">SELL only</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">From Date</div>
+        <input type="date" id="tr-date-from">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">To Date</div>
+        <input type="date" id="tr-date-to">
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadTrades()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Trade History</div>
+      <span class="result-count" id="tr-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th class="sortable" data-col="timestamp" data-tbl="tr">Time</th>
+          <th>Wallet</th>
+          <th>Market</th>
+          <th>Outcome</th>
+          <th>Side</th>
+          <th class="sortable" data-col="price" data-tbl="tr">Price</th>
+          <th class="sortable" data-col="size" data-tbl="tr">Shares</th>
+          <th class="sortable" data-col="_spent" data-tbl="tr">Spent</th>
+          <th>Tx</th>
+        </tr></thead>
+        <tbody id="tr-body"><tr><td colspan="9" class="loading">Set filters and click Search</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── WALLET 360 ────────────────────────────────────────────────────── -->
+<div class="page" id="page-wallet">
+  <div class="filters">
+    <div class="filters-title">Wallet Lookup</div>
+    <div class="filter-row">
+      <div class="filter-group" style="flex:1">
+        <div class="filter-label">Wallet Address</div>
+        <input type="text" id="w360-addr" placeholder="0x..." style="width:100%">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Window</div>
+        <select id="w360-days">
+          <option value="15">15 days</option>
+          <option value="7">7 days</option>
+          <option value="3">3 days</option>
+          <option value="1">1 day</option>
+        </select>
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadWallet360()">Analyze</button>
+      </div>
+    </div>
+  </div>
+  <div id="w360-result"></div>
+</div>
+
+<!-- ── SOCIAL PULSE ─────────────────────────────────────────────────── -->
+<div class="page" id="page-social">
+  <div class="filters">
+    <div class="filters-title">Social Pulse</div>
+    <div class="filter-row">
+      <div class="filter-group" style="flex:1">
+        <div class="filter-label">Keywords (comma-separated)</div>
+        <input type="text" id="social-kw" placeholder="e.g. Trump,election,MAGA" style="width:100%">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Look-back</div>
+        <select id="social-hours">
+          <option value="6">6 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24">24 hours</option>
+          <option value="48">48 hours</option>
+        </select>
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadSocial()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div id="social-results"><div class="empty">Enter keywords and click Search</div></div>
+</div>
+
+<!-- ── KALSHI ───────────────────────────────────────────────────────── -->
+<div class="page" id="page-kalshi">
+  <div class="filters">
+    <div class="filters-title">Kalshi Filters</div>
+    <div class="filter-row">
+      <div class="filter-group" style="flex:1">
+        <div class="filter-label">Title Search</div>
+        <input type="text" id="kalshi-title" placeholder="keyword" style="width:100%">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Ticker</div>
+        <input type="text" id="kalshi-ticker" placeholder="optional">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Status</div>
+        <select id="kalshi-status">
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
+          <option value="finalized">Finalized</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Close After</div>
+        <input type="date" id="kalshi-from">
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Close Before</div>
+        <input type="date" id="kalshi-to">
+      </div>
+      <div class="filter-group" style="justify-content:flex-end">
+        <button class="btn" onclick="loadKalshi()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">Kalshi Markets</div>
+      <span class="result-count" id="kalshi-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Title</th>
+          <th>Ticker</th>
+          <th>Status</th>
+          <th class="sortable" data-col="close_time" data-tbl="kalshi">Close Date</th>
+        </tr></thead>
+        <tbody id="kalshi-body"><tr><td colspan="4" class="loading">Set filters and click Search</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// ── API ───────────────────────────────────────────────────────────────────────
+const api = (agentId, params, limit=50, offset=0) =>
+  fetch('/api', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({agent_id:agentId, params, pagination:{limit,offset}})
+  }).then(r=>r.json());
+
+const $ = id => document.getElementById(id);
+const ts = () => new Date().toLocaleTimeString();
+const dateToUnix = d => d ? Math.floor(new Date(d).getTime()/1000) : null;
+
+// ── Formatting ────────────────────────────────────────────────────────────────
+const fmt$ = n => {
+  if(n==null||n==='') return '—';
+  const v = Number(n);
+  if(isNaN(v)) return '—';
+  const abs = Math.abs(v);
+  const prefix = v<0 ? '-$' : '$';
+  if(abs >= 1e6) return prefix + (abs/1e6).toFixed(2)+'M';
+  if(abs >= 1e3) return prefix + (abs/1e3).toFixed(1)+'k';
+  return prefix + abs.toFixed(0);
+};
+const fmtPct = n => n==null||n===''?'—':Number(n).toFixed(1)+'%';
+const fmtN = n => n==null||n===''?'—':Number(n).toLocaleString();
+const fmtDate = d => {if(!d)return'—';try{return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});}catch{return d;}}
+const fmtTime = d => {if(!d)return'—';try{return new Date(d).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}catch{return d;}}
+const shortAddr = a => a ? a.slice(0,6)+'…'+a.slice(-4) : '—';
+const rankCls = r => r===1?'g':r===2?'s':r===3?'b':'';
+
+// ── Wallet link ───────────────────────────────────────────────────────────────
+function walletCell(addr, clickWallet=true) {
+  if(!addr || addr==='ALL') return '<td>—</td>';
+  const short = shortAddr(addr);
+  const polyUrl = `https://polymarket.com/profile/${addr}`;
+  const clickHandler = clickWallet ? `onclick="lookupWallet('${addr}')" title="Open Wallet 360"` : '';
+  return `<td>
+    <a class="wallet-link" data-addr="${addr}" href="${polyUrl}" target="_blank" onclick="event.stopPropagation()">${short} ↗</a>
+    ${clickWallet ? `<button class="copy-btn" style="opacity:0.5;margin-left:4px" onclick="lookupWallet('${addr}')" title="Wallet 360">📊</button>` : ''}
+    <button class="copy-btn" onclick="navigator.clipboard.writeText('${addr}');this.textContent='✓';setTimeout(()=>this.textContent='⎘',1200)" title="Copy address">⎘</button>
+  </td>`;
+}
+
+// ── Sorting ───────────────────────────────────────────────────────────────────
+const tableData = {};
+const sortState = {};
+
+function sortTable(tblId, col) {
+  if(!tableData[tblId]) return;
+  const s = sortState[tblId] || {col:null, dir:'desc'};
+  const dir = (s.col===col && s.dir==='desc') ? 'asc' : 'desc';
+  sortState[tblId] = {col, dir};
+  tableData[tblId].sort((a,b) => {
+    let av = a[col], bv = b[col];
+    if(col==='_spent'){av=a._spent;bv=b._spent;}
+    av = Number(av) || (typeof av==='string' ? av : 0);
+    bv = Number(bv) || (typeof bv==='string' ? bv : 0);
+    return dir==='desc' ? bv-av : av-bv;
+  });
+  // Update header arrows
+  document.querySelectorAll(`[data-tbl="${tblId}"]`).forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(th.dataset.col===col) th.classList.add(dir==='desc'?'sort-desc':'sort-asc');
+  });
+  renderTable(tblId);
+}
+
+// Wire sortable headers
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', () => sortTable(th.dataset.tbl, th.dataset.col));
+});
+
+function renderTable(tblId) {
+  const rows = tableData[tblId] || [];
+  const body = $(tblId+'-body');
+  if(!body) return;
+  if(!rows.length){body.innerHTML='<tr><td colspan="20" class="empty">No results</td></tr>';return;}
+  body.innerHTML = rows.map((r,i) => renderRow(tblId, r, i)).join('');
+}
+
+function renderRow(tbl, r, i) {
+  if(tbl==='ov-hs'||tbl==='hs') {
+    const pnl = Number(r.total_pnl_15d||0);
+    const roi = Number(r.roi_pct_15d||0);
+    const traj = r.trajectory||'';
+    const trajIcon = traj==='rising'?'📈':traj==='declining'?'📉':'➡️';
+    return `<tr>
+      <td><span class="rank ${rankCls(r.leaderboard_rank)}">#${r.leaderboard_rank}</span></td>
+      ${walletCell(r.wallet)}
+      <td><strong style="color:#a78bfa">${r.h_score}</strong></td>
+      <td class="${roi>=0?'pos':'neg'}">${fmtPct(roi)}</td>
+      <td class="${pnl>=0?'pos':'neg'}">${fmt$(pnl)}</td>
+      <td>${fmtPct(r.win_rate_pct_15d)}</td>
+      <td>${fmtN(r.total_trades_15d)}</td>
+      ${tbl==='hs'?`<td>${fmtN(r.markets_traded_15d)}</td><td>${r.sharpe_ratio_15d||'—'}</td><td>${fmt$(r.total_volume_15d)}</td>`:''}
+      <td><span class="badge badge-elite">${r.tier||'—'}</span></td>
+      ${tbl==='hs'?`<td>${trajIcon} ${traj}</td>`:''}
+    </tr>`;
+  }
+  if(tbl==='ov-lb'||tbl==='lb') {
+    const pnl = Number(r.total_pnl||0);
+    const roi = Number(r.roi||0);
+    return `<tr>
+      <td><span class="rank ${rankCls(r.rank)}">#${r.rank}</span></td>
+      ${walletCell(r.address)}
+      <td class="${pnl>=0?'pos':'neg'}">${fmt$(pnl)}</td>
+      <td class="${roi>=0?'pos':'neg'}">${fmtPct(roi*100)}</td>
+      <td>${fmtPct(Number(r.win_rate||0)*100)}</td>
+      <td>${fmtN(r.total_trades)}</td>
+      ${tbl==='lb'?`<td>${fmt$(r.avg_trade_size)}</td><td>${fmtN(r.markets_traded)}</td><td>${r.sharpe_ratio||'—'}</td>`:''}
+    </tr>`;
+  }
+  if(tbl==='mkt') {
+    return `<tr>
+      <td style="max-width:360px;white-space:normal;min-width:200px">${r.question||'—'}</td>
+      <td class="pos">${fmt$(r.volume_total)}</td>
+      <td><span class="badge ${r.closed?'badge-red':'badge-green'}">${r.closed?'Closed':'Open'}</span></td>
+      <td>${fmtDate(r.end_date)}</td>
+      <td>
+        <span style="font-family:monospace;font-size:11px;color:var(--muted)">${r.slug||'—'}</span>
+        <button class="copy-btn" style="opacity:0.6" onclick="navigator.clipboard.writeText('${r.condition_id||''}');this.textContent='✓';setTimeout(()=>this.textContent='⎘',1200)" title="Copy condition_id">⎘</button>
+      </td>
+    </tr>`;
+  }
+  if(tbl==='tr') {
+    const price = Number(r.price||0);
+    const size = Number(r.size||0);
+    const spent = (price*size).toFixed(2);
+    const txHash = r.transaction_hash||'';
+    return `<tr>
+      <td style="color:var(--muted);font-size:12px">${fmtTime(r.timestamp)}</td>
+      ${walletCell(r.proxy_wallet)}
+      <td style="max-width:200px;white-space:normal;font-size:12px;color:var(--muted)">${r.slug||r.condition_id?.slice(0,12)||'—'}</td>
+      <td style="font-size:12px">${r.outcome||'—'}</td>
+      <td><span class="badge ${r.side==='BUY'?'badge-green':'badge-red'}">${r.side||'—'}</span></td>
+      <td>${fmtPct(price*100)}</td>
+      <td>${size.toFixed(1)}</td>
+      <td class="${price*size>0?'pos':''}">${fmt$(spent)}</td>
+      <td>${txHash ? `<a href="https://polygonscan.com/tx/${txHash}" target="_blank" style="color:#60a5fa;font-size:11px;font-family:monospace">${txHash.slice(0,8)}↗</a>` : '—'}</td>
+    </tr>`;
+  }
+  if(tbl==='kalshi') {
+    return `<tr>
+      <td style="max-width:320px;white-space:normal;min-width:180px">${r.title||r.event_ticker||'—'}</td>
+      <td><span style="font-family:monospace;font-size:12px;color:var(--muted)">${r.ticker||'—'}</span></td>
+      <td><span class="badge ${r.status==='open'?'badge-green':r.status==='closed'?'badge-amber':'badge-blue'}">${r.status||'—'}</span></td>
+      <td>${r.close_time ? fmtDate(new Date(r.close_time*1000).toISOString()) : '—'}</td>
+    </tr>`;
+  }
+  return '<tr><td>—</td></tr>';
+}
+
+// ── Load functions ────────────────────────────────────────────────────────────
+async function loadHScore(forOverview=false) {
+  const params = {min_win_rate_15d:'0.45',max_win_rate_15d:'0.95',min_roi_15d:'0',min_pnl_15d:'0',min_total_trades_15d:'30',max_total_trades_15d:'100000',sort_by:'h_score'};
+  const d = await api(584, params, 10);
+  const rows = d?.data?.results||[];
+  tableData['ov-hs'] = rows;
+  renderTable('ov-hs');
+  if(rows[0]) {
+    $('ov-pnl').textContent = fmt$(rows[0].total_pnl_15d);
+    $('ov-pnl-w').textContent = shortAddr(rows[0].wallet);
+    $('ov-roi').textContent = fmtPct(rows[0].roi_pct_15d);
+    $('ov-roi-w').textContent = shortAddr(rows[0].wallet);
+    $('ov-wr').textContent = fmtPct(rows[0].win_rate_pct_15d);
+    $('ov-wr-w').textContent = shortAddr(rows[0].wallet);
+  }
+}
+
+async function loadOverviewLeader() {
+  const d = await api(579, {leaderboard_period:'1d',wallet_address:'ALL',min_total_pnl:'-1.0',max_total_pnl:'-1.0',min_win_rate:'-1.0',max_win_rate:'-1.0',min_sharpe_ratio:'-1.0',max_sharpe_ratio:'-1.0'}, 10);
+  const rows = d?.data?.results||[];
+  tableData['ov-lb'] = rows;
+  renderTable('ov-lb');
+  if(rows[0]) {
+    $('ov-today').textContent = fmt$(rows[0].total_pnl);
+    $('ov-today-w').textContent = shortAddr(rows[0].address);
+  }
+}
+
+async function loadOverviewMarkets() {
+  const d = await api(574, {min_volume:'10000',condition_id:'ALL',market_slug:'ALL',event_slug:'ALL',closed:'False',end_date_min:'1600000000',end_date_max:'2200000000'}, 200);
+  const rows = d?.data?.results||[];
+  $('ov-mkt').textContent = rows.length + (d?.pagination?.has_more ? '+' : '');
+}
+
+async function loadLeaderboard() {
+  $('lb-body').innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+  const period = $('lb-period').value;
+  const wallet = $('lb-wallet').value.trim()||'ALL';
+  const minPnl = $('lb-min-pnl').value||'-1.0';
+  const minWr = $('lb-min-wr').value ? (Number($('lb-min-wr').value)/100).toString() : '-1.0';
+  const minSharpe = $('lb-min-sharpe').value||'-1.0';
+  const d = await api(579, {leaderboard_period:period,wallet_address:wallet,
+    min_total_pnl:minPnl,max_total_pnl:'-1.0',
+    min_win_rate:minWr,max_win_rate:'-1.0',
+    min_sharpe_ratio:minSharpe,max_sharpe_ratio:'-1.0'}, 100);
+  const rows = d?.data?.results||[];
+  tableData['lb'] = rows;
+  $('lb-count').textContent = rows.length + (d?.pagination?.has_more?'+':'') + ' results';
+  renderTable('lb');
+}
+
+async function loadHScorePage() {
+  $('hs-body').innerHTML = '<tr><td colspan="12" class="loading">Loading…</td></tr>';
+  const d = await api(584, {
+    min_win_rate_15d: $('hs-min-wr').value||'0',
+    max_win_rate_15d: $('hs-max-wr').value||'1',
+    min_roi_15d: $('hs-min-roi').value||'-999',
+    min_pnl_15d: $('hs-min-pnl').value||'-999999',
+    min_total_trades_15d: $('hs-min-trades').value||'1',
+    max_total_trades_15d: $('hs-max-trades').value||'999999',
+    sort_by: $('hs-sort').value,
+  }, 100);
+  const rows = d?.data?.results||[];
+  tableData['hs'] = rows;
+  $('hs-count').textContent = rows.length + (d?.pagination?.has_more?'+':'') + ' results';
+  renderTable('hs');
+}
+
+async function loadMarkets() {
+  $('mkt-body').innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+  const slug = $('mkt-slug').value.trim()||'ALL';
+  const vol = $('mkt-vol').value||'0';
+  const closed = $('mkt-closed').value;
+  const dMin = dateToUnix($('mkt-date-min').value) || 1600000000;
+  const dMax = dateToUnix($('mkt-date-max').value) || 2200000000;
+  const d = await api(574, {min_volume:vol,condition_id:'ALL',market_slug:slug,event_slug:'ALL',
+    closed, end_date_min:String(dMin), end_date_max:String(dMax)}, 100);
+  const rows = d?.data?.results||[];
+  tableData['mkt'] = rows;
+  $('mkt-count').textContent = rows.length + (d?.pagination?.has_more?'+':'') + ' results';
+  renderTable('mkt');
+}
+
+async function loadTrades() {
+  $('tr-body').innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+  const wallet = $('tr-wallet').value.trim()||'ALL';
+  const slug = $('tr-slug').value.trim()||'ALL';
+  const side = $('tr-side').value;
+  const params = {wallet_proxy:wallet, condition_id:'ALL', market_slug:slug, side};
+  const from = dateToUnix($('tr-date-from').value);
+  const to = dateToUnix($('tr-date-to').value);
+  if(from) params.start_time = String(from);
+  if(to) params.end_time = String(to);
+  const d = await api(556, params, 200);
+  const rows = (d?.data?.results||[]).map(r=>({...r, _spent:Number(r.price||0)*Number(r.size||0)}));
+  tableData['tr'] = rows;
+  $('tr-count').textContent = rows.length + (d?.pagination?.has_more?'+':'') + ' results';
+  renderTable('tr');
+}
+
+function lookupWallet(addr) {
+  document.querySelector('[data-tab="wallet"]').click();
+  $('w360-addr').value = addr;
+  loadWallet360();
+}
+
+async function loadWallet360() {
+  const addr = $('w360-addr').value.trim();
+  if(!addr){alert('Enter a wallet address');return;}
+  const days = $('w360-days').value;
+  $('w360-result').innerHTML = '<div class="loading">Analyzing wallet…</div>';
+  const d = await api(581, {proxy_wallet:addr, window_days:days}, 1);
+  const results = d?.data?.results||[];
+  if(!results.length) {
+    $('w360-result').innerHTML = `<div class="err">${d?.error?.message||'No data'}</div>`;
+    return;
+  }
+  const r = results[0];
+  const heroFields = ['total_pnl','pnl','roi_pct','roi','win_rate_pct','win_rate','total_trades','markets_traded','avg_trade_size'];
+  const getPnl = () => r.total_pnl ?? r.pnl ?? 0;
+  const getRoi = () => r.roi_pct ?? r.roi ?? 0;
+  const getWr  = () => r.win_rate_pct ?? r.win_rate ?? 0;
+  const pnl = Number(getPnl());
+  const roi = Number(getRoi());
+  const wr  = Number(getWr());
+
+  const allKeys = Object.keys(r).filter(k => r[k]!=null && r[k]!=='' && k!=='proxy_wallet' && k!=='wallet');
+  $('w360-result').innerHTML = `
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="font-size:14px;font-weight:700">${addr}</div>
+      <a href="https://polymarket.com/profile/${addr}" target="_blank" style="color:#818cf8;font-size:12px">Polymarket ↗</a>
+      <a href="https://polygonscan.com/address/${addr}" target="_blank" style="color:#60a5fa;font-size:12px">Polygonscan ↗</a>
+      <button onclick="navigator.clipboard.writeText('${addr}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Address',1500)" style="font-size:12px;padding:4px 10px;background:#1e293b;border:none;border-radius:6px;color:#94a3b8;cursor:pointer">Copy Address</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hero-label">Total PnL</div><div class="hero-val ${pnl>=0?'pos':'neg'}">${fmt$(pnl)}</div></div>
+      <div class="hero-stat"><div class="hero-label">ROI</div><div class="hero-val ${roi>=0?'pos':'neg'}">${fmtPct(roi)}</div></div>
+      <div class="hero-stat"><div class="hero-label">Win Rate</div><div class="hero-val">${fmtPct(wr)}</div></div>
+      <div class="hero-stat"><div class="hero-label">Total Trades</div><div class="hero-val">${fmtN(r.total_trades)}</div></div>
+      <div class="hero-stat"><div class="hero-label">Markets</div><div class="hero-val">${fmtN(r.markets_traded)}</div></div>
+      <div class="hero-stat"><div class="hero-label">Avg Bet</div><div class="hero-val">${fmt$(r.avg_trade_size)}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">All ${allKeys.length} Metrics</div>
+      <div class="w360-grid">
+        ${allKeys.map(k=>`
+          <div class="w360-stat">
+            <div class="w360-label">${k.replace(/_/g,' ')}</div>
+            <div class="w360-val">${r[k]}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="loadTradesForWallet('${addr}')">📋 View Trades</button>
+    </div>`;
+}
+
+function loadTradesForWallet(addr) {
+  document.querySelector('[data-tab="trades"]').click();
+  $('tr-wallet').value = addr;
+  loadTrades();
+}
+
+async function loadSocial() {
+  const kw = $('social-kw').value.trim();
+  if(!kw){alert('Enter keywords');return;}
+  const hours = $('social-hours').value;
+  $('social-results').innerHTML = '<div class="loading">Fetching social data…</div>';
+  const keywords = '{'+kw.split(',').map(k=>k.trim()).filter(Boolean).join(',')+'}';
+  const d = await api(585, {keywords, hours_back:hours}, 50);
+  const rows = d?.data?.results||[];
+  if(!rows.length){$('social-results').innerHTML='<div class="empty">No social data found</div>';return;}
+  $('social-results').innerHTML = rows.map(r=>{
+    const accel = Number(r.acceleration||0);
+    const div = Number(r.author_diversity_pct||0);
+    const signal = accel>1.5&&div>40?'🔥 Strong Signal':accel>1.2&&div>40?'📈 Rising':accel>1.0&&div>40?'📊 Picking Up':accel>1.0&&div<20?'🤖 Bot Noise':'⬜ Neutral';
+    const signalColor = accel>1.2&&div>40?'badge-green':accel>1.0&&div<20?'badge-red':'badge-amber';
+    return `<div class="social-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:15px;font-weight:700">${kw}</span>
+        <span class="badge ${signalColor}">${signal}</span>
+        <span style="color:var(--muted);font-size:12px;margin-left:auto">Last ${hours}h</span>
+      </div>
+      <div class="social-grid">
+        <div class="smet"><div class="sk">Tweets</div><div class="sv">${Number(r.tweet_count||0).toLocaleString()}</div></div>
+        <div class="smet"><div class="sk">Acceleration</div><div class="sv" style="color:${accel>1.2?'var(--green)':accel>1.0?'var(--amber)':'var(--muted)'}">${accel.toFixed(2)}×</div></div>
+        <div class="smet"><div class="sk">Author Diversity</div><div class="sv" style="color:${div>40?'var(--green)':div<20?'var(--red)':'var(--amber)'}">${div.toFixed(0)}%</div></div>
+        <div class="smet"><div class="sk">Likes</div><div class="sv">${Number(r.like_count||0).toLocaleString()}</div></div>
+        <div class="smet"><div class="sk">Retweets</div><div class="sv">${Number(r.retweet_count||0).toLocaleString()}</div></div>
+        <div class="smet"><div class="sk">Replies</div><div class="sv">${Number(r.reply_count||0).toLocaleString()}</div></div>
+        <div class="smet"><div class="sk">Last 1h %</div><div class="sv">${Number(r.pct_last_1h||0).toFixed(1)}%</div></div>
+        <div class="smet"><div class="sk">Last 6h %</div><div class="sv">${Number(r.pct_last_6h||0).toFixed(1)}%</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadKalshi() {
+  $('kalshi-body').innerHTML = '<tr><td colspan="4" class="loading">Loading…</td></tr>';
+  const params = {status:$('kalshi-status').value};
+  const title = $('kalshi-title').value.trim();
+  const ticker = $('kalshi-ticker').value.trim();
+  const from = dateToUnix($('kalshi-from').value);
+  const to   = dateToUnix($('kalshi-to').value);
+  if(title)  params.title  = title;
+  if(ticker) params.ticker = ticker;
+  if(from)   params.close_time_min = String(from);
+  if(to)     params.close_time_max = String(to);
+  const d = await api(565, params, 100);
+  const rows = d?.data?.results||[];
+  tableData['kalshi'] = rows;
+  $('kalshi-count').textContent = rows.length + (d?.pagination?.has_more?'+':'') + ' results';
+  renderTable('kalshi');
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('page-'+t.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  $('last-updated').textContent = 'Loading…';
+  await Promise.all([loadHScore(), loadOverviewLeader(), loadOverviewMarkets()]);
+  $('last-updated').textContent = 'Updated ' + ts();
+}
+init();
+
+// ── Wallet hover card ─────────────────────────────────────────────────────────
+(function(){
+  const card = document.createElement('div');
+  card.id = 'wallet-hovercard';
+  document.body.appendChild(card);
+
+  let hoverTimer = null;
+  let hideTimer = null;
+  let currentAddr = null;
+  const cache = {};
+
+  function showCard(addr, anchorEl) {
+    clearTimeout(hideTimer);
+    if(currentAddr === addr && card.classList.contains('visible')) return;
+    currentAddr = addr;
+
+    // Position near element
+    const rect = anchorEl.getBoundingClientRect();
+    let top = rect.bottom + 8;
+    let left = rect.left;
+    card.style.top = top + 'px';
+    card.style.left = left + 'px';
+    card.style.opacity = '0';
+    card.classList.add('visible');
+
+    // Clamp to viewport
+    requestAnimationFrame(() => {
+      const cw = card.offsetWidth, ch = card.offsetHeight;
+      if(left + cw > window.innerWidth - 12) card.style.left = (window.innerWidth - cw - 12) + 'px';
+      if(top + ch > window.innerHeight - 12) card.style.top = (rect.top - ch - 8) + 'px';
+      card.style.opacity = '1';
+    });
+
+    if(cache[addr]) { renderCard(addr, cache[addr]); return; }
+
+    card.innerHTML = `<div class="wh-addr">${addr}</div><div class="wh-spinner">Loading wallet data…</div>`;
+
+    api(581, {proxy_wallet: addr, window_days: '7'}, 1).then(d => {
+      const r = (d?.data?.results||[])[0];
+      cache[addr] = r || null;
+      if(currentAddr === addr) renderCard(addr, r);
+    }).catch(() => {
+      if(currentAddr === addr) card.innerHTML = `<div class="wh-addr">${addr}</div><div class="wh-spinner">Failed to load</div>`;
+    });
+  }
+
+  function renderCard(addr, r) {
+    const short = addr.slice(0,6)+'…'+addr.slice(-4);
+    if(!r) {
+      card.innerHTML = `<div class="wh-addr">${short}</div><div class="wh-spinner">No data available</div>
+        <div class="wh-actions" style="margin-top:10px">
+          <a class="wh-btn wh-btn-pm" href="https://polymarket.com/profile/${addr}" target="_blank">Polymarket ↗</a>
+          <button class="wh-btn wh-btn-360" onclick="lookupWallet('${addr}')">Wallet 360</button>
+        </div>`;
+      return;
+    }
+    const pnl = Number(r.total_pnl ?? r.pnl ?? 0);
+    const roi = Number(r.roi_pct ?? r.roi ?? 0);
+    const wr  = Number(r.win_rate_pct ?? r.win_rate ?? 0);
+    const trades = r.total_trades ?? r.num_trades ?? '—';
+    const sharpe = r.sharpe_ratio != null ? Number(r.sharpe_ratio).toFixed(2) : '—';
+    const hscore = r.h_score ?? '—';
+    const pnlCol = pnl >= 0 ? '#4ade80' : '#f87171';
+    const roiCol = roi >= 0 ? '#4ade80' : '#f87171';
+
+    card.innerHTML = `
+      <div class="wh-addr">${short}</div>
+      <div class="wh-grid">
+        <div class="wh-stat"><div class="wh-label">PnL (7d)</div><div class="wh-val" style="color:${pnlCol}">${fmt$(pnl)}</div></div>
+        <div class="wh-stat"><div class="wh-label">ROI</div><div class="wh-val" style="color:${roiCol}">${fmtPct(roi)}</div></div>
+        <div class="wh-stat"><div class="wh-label">Win Rate</div><div class="wh-val">${fmtPct(wr)}</div></div>
+        <div class="wh-stat"><div class="wh-label">Sharpe</div><div class="wh-val">${sharpe}</div></div>
+        <div class="wh-stat"><div class="wh-label">Trades</div><div class="wh-val">${trades}</div></div>
+        <div class="wh-stat"><div class="wh-label">H-Score</div><div class="wh-val" style="color:#a78bfa">${hscore}</div></div>
+      </div>
+      <div class="wh-actions">
+        <a class="wh-btn wh-btn-pm" href="https://polymarket.com/profile/${addr}" target="_blank">Polymarket ↗</a>
+        <button class="wh-btn wh-btn-360" onclick="lookupWallet('${addr}')">Full Wallet 360</button>
+      </div>`;
+  }
+
+  function hideCard() {
+    hideTimer = setTimeout(() => {
+      card.classList.remove('visible');
+      currentAddr = null;
+    }, 200);
+  }
+
+  card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  card.addEventListener('mouseleave', hideCard);
+
+  // Delegate hover on wallet-link elements
+  document.addEventListener('mouseover', e => {
+    const link = e.target.closest('.wallet-link[data-addr]');
+    if(!link) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => showCard(link.dataset.addr, link), 350);
+  });
+  document.addEventListener('mouseout', e => {
+    const link = e.target.closest('.wallet-link[data-addr]');
+    if(!link) return;
+    clearTimeout(hoverTimer);
+    // Only hide if not moving into the card
+    const to = e.relatedTarget;
+    if(!card.contains(to)) hideCard();
+  });
+})();
+</script>
+</body>
+</html>
