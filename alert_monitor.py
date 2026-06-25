@@ -148,7 +148,7 @@ class ClusterWatcher:
                     cost    = price * size
                     key     = (wallet, slug, outcome)
 
-                    if key not in self.seen and is_sports(slug):
+                    if key not in self.seen and is_sports(slug) and cost >= 500:
                         self.seen.add(key)
                         short_slug = slug.split('-')
                         match = ' vs '.join(short_slug[1:3]).title() if len(short_slug) > 2 else slug
