@@ -4,10 +4,14 @@ Base URL: https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/paramet
 Auth: Bearer token in Authorization header
 """
 
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
 import requests
 
 API_URL = "https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized"
-TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg2MDA2NjA0LCJpYXQiOjE3ODA4MjI2MDQsImp0aSI6IjNmNWU4ZGEzODk0ZDQ5YzA4OGMyMDliYWU5NTg0OGY4IiwidXNlcl9pZCI6ODk4LCJzY29wZSI6InJldHJpZXZlcjplY2hvLWdlbmVyYXRpb24scmV0cmlldmVyOmFnZW50LW9wdGlvbi1yZXRyaWV2YWwsbGF1bmNocGFkOmFnZW50LXJlYWQscmV0cmlldmVyOnNlbWFudGljLXJldHJpZXZhbCxsYXVuY2hwYWQ6YWdlbnQtY3JlYXRpb24sdXNlcjpyZWFkLGxhdW5jaHBhZDphZ2VudC11cGRhdGUsbGF1bmNocGFkOmVjaG8tc3R5bGUtY3JlYXRpb24sdXNlcjp3cml0ZSxyZXRyaWV2ZXI6ZmVhdHVyZS1leHRyYWN0aW9uIiwidG9rZW5fbmFtZSI6ImJhc2VfbG9naW4ifQ.Wd6MMBFTP6secI7NQ-DRvJ2a0iNNTVGrex_gm-HRsfQ"
+TOKEN = os.environ['HEISENBERG_TOKEN']
 
 
 class FalconAPI:

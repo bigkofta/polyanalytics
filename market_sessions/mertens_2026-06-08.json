@@ -1,0 +1,26 @@
+{
+  "market": "wta-andrees-mertens-2026-06-08",
+  "match": "Bianca Andreescu vs Elise Mertens",
+  "event": "Libema Open",
+  "date": "2026-06-08",
+  "result": "Mertens won",
+  "live_start_utc": "2026-06-08T11:09",
+  "final_price_mertens": 0.999,
+  "total_volume": 112842,
+  "total_trades": 1680,
+  "mertens_trades": 762,
+  "pre_match_wallets": 127,
+  "live_wallets": 122,
+  "top10": [
+    {"rank": 1, "type": "PRE",  "wallet": "0xa82a8a824d9102e2309584da10c8622478bda759", "avg_entry": 0.725, "cost": 7400,  "unreal_pnl": 2800,  "trades": 59, "first_buy": "2026-06-07T11:32"},
+    {"rank": 2, "type": "PRE",  "wallet": "0xe3d4dee2427b98042822543f8e1e8ab7bafb2bac", "avg_entry": 0.758, "cost": 3300,  "unreal_pnl": 1048,  "trades": 1,  "first_buy": "2026-06-08T11:05"},
+    {"rank": 3, "type": "PRE",  "wallet": "0xff81cc85838ce8f91a7d4ae2eeddadfa3f8444c9", "avg_entry": 0.740, "cost": 2981,  "unreal_pnl": 1043,  "trades": 1,  "first_buy": "2026-06-08T10:38"},
+    {"rank": 4, "type": "LIVE", "wallet": "0x2005d16a84ceefa912d4e380cd32e7ff827875ea", "avg_entry": 0.906, "cost": 9643,  "unreal_pnl": 990,   "trades": 38, "first_buy": "2026-06-08T11:06", "note": "CLUSTER-RANK16"},
+    {"rank": 5, "type": "PRE",  "wallet": "0xde764ff85a1472e75c1116a969f42ce8955e7d17", "avg_entry": 0.730, "cost": 2550,  "unreal_pnl": 940,   "trades": 28, "first_buy": "2026-06-08T10:14"},
+    {"rank": 6, "type": "PRE",  "wallet": "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e", "avg_entry": 0.730, "cost": 1763,  "unreal_pnl": 650,   "trades": 7,  "first_buy": "2026-06-08T03:30"},
+    {"rank": 7, "type": "LIVE", "wallet": "0x32b484581fc5606de9c1e43af4636b6be9bc8b21", "avg_entry": 0.739, "cost": 1686,  "unreal_pnl": 594,   "trades": 16, "first_buy": "2026-06-08T03:45"},
+    {"rank": 8, "type": "PRE",  "wallet": "0xadfb6cba33cebca02eab6111ace1e3924b9cc2ef", "avg_entry": 0.726, "cost": 1487,  "unreal_pnl": 559,   "trades": 13, "first_buy": "2026-06-07T17:49"},
+    {"rank": 9, "type": "LIVE", "wallet": "0x5c2f05f661bc4b3fce17e41b43a06026d0d6499c", "avg_entry": 0.870, "cost": 3622,  "unreal_pnl": 538,   "trades": 1,  "first_buy": "2026-06-08T11:12"},
+    {"rank": 10,"type": "LIVE", "wallet": "0x204f72f35326db932158cba6adff0b9a1da95e14", "avg_entry": 0.948, "cost": 9880,  "unreal_pnl": 526,   "trades": 6,  "first_buy": "2026-06-08T11:04"}
+  ]
+}
