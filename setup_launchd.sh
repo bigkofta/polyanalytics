@@ -1,7 +1,7 @@
 #!/bin/bash
 # Sets up launchd agents so Falcon runs automatically:
 #   1. alert_monitor.py — starts on login, restarts if it crashes
-#   2. daily_collect.py — runs every morning at 07:00 UTC (adjust to your timezone)
+#   2. daily_brief.py — runs every morning at 07:00 UTC (adjust to your timezone)
 #
 # Run once: bash setup_launchd.sh
 # To uninstall: bash setup_launchd.sh uninstall
@@ -60,7 +60,7 @@ cat > "$LAUNCH_AGENTS/com.falcon.daily.plist" << EOF
     <key>ProgramArguments</key>
     <array>
         <string>$PYTHON</string>
-        <string>$FALCON_DIR/daily_collect.py</string>
+        <string>$FALCON_DIR/daily_brief.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$FALCON_DIR</string>
