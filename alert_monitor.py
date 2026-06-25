@@ -1,16 +1,21 @@
 """
-Polymarket Whale Alert Monitor
-Runs three detection methods in parallel:
+Polymarket Alert Monitor
 
-  METHOD 1 — Live market whale scanner
+Four detection methods running in parallel:
+
+  METHOD 1 — Cluster wallet watcher (PRIORITY)
+    Fires immediately when any of the 28 tracked cluster wallets
+    makes a new position in any sports market, regardless of size.
+
+  METHOD 2 — Live market whale scanner
     Polls recent trades every 2 min. Alerts when any wallet
     spends >$WHALE_THRESHOLD in a single sports market within a 2h window.
 
-  METHOD 2 — New position opener
-    Alerts immediately when a wallet opens a NEW position in a
+  METHOD 3 — New position opener
+    Alerts immediately when any wallet opens a NEW position in a
     sports/tennis market with a single trade >$NEW_POS_THRESHOLD.
 
-  METHOD 3 — Leaderboard watcher
+  METHOD 4 — Leaderboard watcher
     Checks h_score leaderboard every 15 min. Alerts when a new
     wallet enters the top N.
 
@@ -18,33 +23,51 @@ Usage:
     python alert_monitor.py
     python alert_monitor.py --whale 100000 --new-pos 30000 --top-n 15
 
-Alerts print to terminal and append to alerts.log.
-Set WEBHOOK_URL env var to also POST alerts to a Discord/Telegram webhook.
+Alerts print to terminal, append to logs/alerts.log, and send to Telegram.
 """
 
-import os
-import sys
-import time
-import json
-import argparse
-import requests
-import threading
+import os, sys, time, json, argparse, requests, threading
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from falcon_api import FalconAPI, TOKEN, API_URL
+import tg
 
 api = FalconAPI()
 headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
-# ── Config ─────────────────────────────────────────────────────────────────────
+# ── Cluster wallets (28) ────────────────────────────────────────────────────────
+
+CLUSTER = {
+    '0x204f72f35326db932158cba6adff0b9a1da95e14': 'All3 #1',
+    '0x2005d16a84ceefa912d4e380cd32e7ff827875ea': 'RANK16',
+    '0x32b484581fc5606de9c1e43af4636b6be9bc8b21': 'All3 #3',
+    '0xfe787d2da716d60e8acff57fb87eb13cd4d10319': 'All3 #4',
+    '0xde9f7f4e77a1595623ceb58e469f776257ccd43c': 'All3 #5',
+    '0x7d9a514f9da9e8aa7fa37306943c7d1720d805e6': 'All3 #6',
+    '0x7fea691e28d169a33c500607279f2acb49058f74': 'All3 #7',
+    '0x5c2f05f661bc4b3fce17e41b43a06026d0d6499c': 'All3 #8',
+    '0xadfb6cba33cebca02eab6111ace1e3924b9cc2ef': 'All3 #9',
+    '0xa82a8a824d9102e2309584da10c8622478bda759': 'WTA Sharp',
+    '0xcf6c5492124794394dd9eac46498a8babbe47e66': 'BU Sharp#1',
+    '0xafac3978537771688598b0b65b9bb222e8318730': 'BU Sharp#2',
+    '0x42c99f38d2b951b0dc8e8bd5371fa80c9dd19623': 'BU Sharp#3',
+    '0xccd81fbd3395dc43a0531f8484b21c2462daf4de': 'BU Sharp#4',
+}
+CLUSTER_LOWER = {k.lower(): v for k, v in CLUSTER.items()}
+
+# ── Config ──────────────────────────────────────────────────────────────────────
 
 SPORTS_KEYWORDS = ["atp-", "wta-", "epl-", "sea-", "bun-", "nba-", "nfl-",
                    "mlb-", "nhl-", "ufc-", "mma-", "tennis", "soccer", "football"]
 
-LOG_FILE = os.path.join(os.path.dirname(__file__), "alerts.log")
+os.makedirs('logs', exist_ok=True)
+LOG_FILE = os.path.join(os.path.dirname(__file__), "logs", "alerts.log")
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# ── Helpers ─────────────────────────────────────────────────────────────────────
 
 def is_sports(slug: str) -> bool:
     sl = (slug or "").lower()
@@ -54,30 +77,14 @@ def now_utc() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 def ts_str() -> str:
-    return now_utc().strftime("%Y-%m-%d %H:%M:%S UTC")
+    return now_utc().strftime("%Y-%m-%d %H:%M UTC")
 
-def alert(method: str, msg: str, data: dict = None):
+def alert(method: str, msg: str, tg_msg: str = None):
     line = f"[{ts_str()}] [{method}] {msg}"
     print(line)
-    if data:
-        print(f"  {json.dumps(data)}")
-    # Append to log
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
-        if data:
-            f.write(f"  {json.dumps(data)}\n")
-    # Optional webhook (Discord or Telegram)
-    webhook = os.getenv("WEBHOOK_URL")
-    if webhook:
-        try:
-            payload = {"content": line}
-            if "discord" in webhook:
-                requests.post(webhook, json=payload, timeout=5)
-            else:
-                # Telegram: POST to /sendMessage
-                requests.post(webhook, json={"text": line}, timeout=5)
-        except Exception:
-            pass
+    tg.send(tg_msg or f"`{method}`\n{msg}")
 
 def post(agent_id, params, limit=200, offset=0):
     payload = {
@@ -91,33 +98,88 @@ def post(agent_id, params, limit=200, offset=0):
     return r.json()
 
 
-# ── Method 1 & 2: Trade scanner ────────────────────────────────────────────────
+# ── Method 1: Cluster wallet watcher ───────────────────────────────────────────
+
+class ClusterWatcher:
+    """
+    Polls every 60s. Fires instantly when a cluster wallet opens
+    a new position in any sports market.
+    Early movers (BU Sharp#2, WTA Sharp) will trigger hours before the rest.
+    """
+    POLL_INTERVAL = 60
+
+    def __init__(self):
+        self.seen: set[tuple] = set()  # (wallet, slug, outcome)
+        self.seeded = False
+
+    def _fetch(self, wallet: str) -> list:
+        try:
+            data = post(556, {
+                "wallet_proxy": wallet,
+                "condition_id": "ALL",
+                "market_slug": "ALL",
+                "side": "BUY",
+            }, limit=50)
+            return data.get("data", {}).get("results", [])
+        except Exception as e:
+            print(f"  [ClusterWatcher] fetch error {wallet[:10]}: {e}")
+            return []
+
+    def run(self):
+        print(f"[ClusterWatcher] Watching {len(CLUSTER)} cluster wallets | poll={self.POLL_INTERVAL}s")
+
+        # Seed on first run so we don't spam on startup
+        for wallet in CLUSTER_LOWER:
+            for t in self._fetch(wallet):
+                slug    = (t.get("slug") or t.get("market_slug") or "").lower()
+                outcome = (t.get("outcome") or "").lower()
+                self.seen.add((wallet, slug, outcome))
+        self.seeded = True
+        print(f"  [ClusterWatcher] Seeded {len(self.seen)} existing positions")
+
+        while True:
+            time.sleep(self.POLL_INTERVAL)
+            for wallet, label in CLUSTER_LOWER.items():
+                for t in self._fetch(wallet):
+                    slug    = (t.get("slug") or t.get("market_slug") or "").lower()
+                    outcome = (t.get("outcome") or "").lower()
+                    price   = float(t.get("price") or 0)
+                    size    = float(t.get("size") or 0)
+                    cost    = price * size
+                    key     = (wallet, slug, outcome)
+
+                    if key not in self.seen and is_sports(slug):
+                        self.seen.add(key)
+                        short_slug = slug.split('-')
+                        match = ' vs '.join(short_slug[1:3]).title() if len(short_slug) > 2 else slug
+                        alert(
+                            "CLUSTER",
+                            f"{label} | {match} | {outcome.upper()} @ {price:.3f} | ${cost:,.0f}",
+                            tg_msg=(
+                                f"*CLUSTER ALERT* 🎾\n"
+                                f"*{label}* opened position\n"
+                                f"Match: `{slug}`\n"
+                                f"Pick: *{outcome.upper()}* @ {price:.3f}\n"
+                                f"Size: ${cost:,.0f}\n"
+                                f"Wallet: `{wallet}`"
+                            )
+                        )
+
+
+# ── Method 2 & 3: Trade scanner ────────────────────────────────────────────────
 
 class TradeScanner:
-    """
-    Polls recent global trades every POLL_INTERVAL seconds.
-    Maintains a rolling 2h window of (wallet, market) spending.
-    Triggers whale alert when cumulative spend crosses WHALE_THRESHOLD.
-    Triggers new-position alert on first large buy in a sports market.
-    """
-
-    POLL_INTERVAL = 120  # seconds between polls
+    POLL_INTERVAL = 120
 
     def __init__(self, whale_threshold: float, new_pos_threshold: float):
         self.whale_threshold   = whale_threshold
         self.new_pos_threshold = new_pos_threshold
-
-        # wallet -> market_slug -> list of (timestamp, cost)
-        self.window: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
-        # wallets we've already alerted on for a given market (reset when market resolves)
+        self.window: dict      = defaultdict(lambda: defaultdict(list))
         self.alerted_whale: set[tuple] = set()
-        # (wallet, market) pairs we've seen before (for new-position detection)
         self.seen_positions: set[tuple] = set()
-        # track last seen trade timestamp to avoid re-processing
         self.last_seen_ts: str | None = None
 
     def _fetch_recent_trades(self) -> list:
-        """Pull the latest batch of global trades."""
         try:
             data = post(556, {
                 "proxy_wallet": "ALL",
@@ -131,7 +193,6 @@ class TradeScanner:
             return []
 
     def _prune_window(self, cutoff: datetime):
-        """Remove entries older than cutoff from the rolling window."""
         for wallet in list(self.window):
             for market in list(self.window[wallet]):
                 self.window[wallet][market] = [
@@ -149,15 +210,14 @@ class TradeScanner:
 
         new_trades = []
         for t in trades:
-            ts_str_raw = t.get("timestamp") or t.get("created_at") or ""
-            if self.last_seen_ts and ts_str_raw <= self.last_seen_ts:
+            ts_raw = t.get("timestamp") or t.get("created_at") or ""
+            if self.last_seen_ts and ts_raw <= self.last_seen_ts:
                 continue
             new_trades.append(t)
 
         if not new_trades:
             return
 
-        # Update last_seen_ts
         all_ts = [t.get("timestamp") or "" for t in new_trades]
         self.last_seen_ts = max(all_ts) if all_ts else self.last_seen_ts
 
@@ -174,18 +234,23 @@ class TradeScanner:
             if not wallet or not slug or cost <= 0:
                 continue
 
-            # ── Method 2: New position alert ───────────────────────────────────
             pos_key = (wallet.lower(), slug.lower())
             is_new  = pos_key not in self.seen_positions
             self.seen_positions.add(pos_key)
 
             if is_new and is_sports(slug) and cost >= self.new_pos_threshold:
-                alert("NEW-POSITION", f"${cost:,.0f} first buy | {slug} | {t.get('outcome')} @ {price:.3f}",
-                      {"wallet": wallet, "slug": slug, "outcome": t.get("outcome"),
-                       "price": price, "size": size, "cost": cost,
-                       "timestamp": t.get("timestamp")})
+                alert(
+                    "NEW-POSITION",
+                    f"${cost:,.0f} first buy | {slug} | {t.get('outcome')} @ {price:.3f} | {wallet[:12]}...",
+                    tg_msg=(
+                        f"*NEW POSITION* 💰\n"
+                        f"${cost:,.0f} first entry\n"
+                        f"Market: `{slug}`\n"
+                        f"Pick: *{t.get('outcome','?').upper()}* @ {price:.3f}\n"
+                        f"Wallet: `{wallet}`"
+                    )
+                )
 
-            # ── Accumulate into rolling window ─────────────────────────────────
             ts_val = t.get("timestamp") or ""
             try:
                 ts_dt = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
@@ -195,7 +260,6 @@ class TradeScanner:
             if ts_dt >= cutoff:
                 self.window[wallet.lower()][slug.lower()].append((ts_dt, cost))
 
-        # ── Method 1: Whale threshold check ────────────────────────────────────
         for wallet, markets in self.window.items():
             for slug, entries in markets.items():
                 if not is_sports(slug):
@@ -204,14 +268,20 @@ class TradeScanner:
                 key = (wallet, slug)
                 if total_cost >= self.whale_threshold and key not in self.alerted_whale:
                     self.alerted_whale.add(key)
-                    alert("WHALE-BUY",
-                          f"${total_cost:,.0f} accumulated in 2h | {slug}",
-                          {"wallet": wallet, "slug": slug,
-                           "total_cost": total_cost, "trades": len(entries)})
+                    alert(
+                        "WHALE-BUY",
+                        f"${total_cost:,.0f} accumulated in 2h | {slug} | {wallet[:12]}...",
+                        tg_msg=(
+                            f"*WHALE BUY* 🐋\n"
+                            f"${total_cost:,.0f} in 2h window\n"
+                            f"Market: `{slug}`\n"
+                            f"Wallet: `{wallet}`\n"
+                            f"Trades: {len(entries)}"
+                        )
+                    )
 
     def run(self):
-        print(f"[TradeScanner] Started | whale=${self.whale_threshold:,.0f} | "
-              f"new_pos=${self.new_pos_threshold:,.0f} | poll={self.POLL_INTERVAL}s")
+        print(f"[TradeScanner] whale=${self.whale_threshold:,.0f} | new_pos=${self.new_pos_threshold:,.0f}")
         while True:
             try:
                 trades = self._fetch_recent_trades()
@@ -221,20 +291,15 @@ class TradeScanner:
             time.sleep(self.POLL_INTERVAL)
 
 
-# ── Method 3: Leaderboard watcher ─────────────────────────────────────────────
+# ── Method 4: Leaderboard watcher ──────────────────────────────────────────────
 
 class LeaderboardWatcher:
-    """
-    Checks h_score leaderboard every POLL_INTERVAL seconds.
-    Alerts when a wallet newly enters the top N.
-    """
-
     POLL_INTERVAL = 900  # 15 min
 
     def __init__(self, top_n: int):
-        self.top_n   = top_n
-        self.known   = set()   # wallets we've seen in top N before
-        self.seeded  = False
+        self.top_n  = top_n
+        self.known  = set()
+        self.seeded = False
 
     def _fetch_top(self) -> list:
         try:
@@ -253,72 +318,71 @@ class LeaderboardWatcher:
             return []
 
     def run(self):
-        print(f"[LeaderboardWatcher] Started | top_n={self.top_n} | poll={self.POLL_INTERVAL}s")
+        print(f"[LeaderboardWatcher] top_n={self.top_n} | poll={self.POLL_INTERVAL}s")
         while True:
             try:
-                top = self._fetch_top()
+                top     = self._fetch_top()
                 current = set()
                 for i, w in enumerate(top):
                     addr = (w.get("wallet") or w.get("proxy_wallet") or "").lower()
-                    if addr:
-                        current.add(addr)
-                        if not self.seeded and addr not in self.known:
-                            # On first run, just seed the known set
-                            pass
-                        elif self.seeded and addr not in self.known:
-                            h     = w.get("h_score", "?")
-                            wr    = w.get("win_rate_pct") or w.get("win_rate_15d") or "?"
-                            roi   = w.get("roi_pct_15d") or w.get("roi_pct") or "?"
-                            pnl   = w.get("total_pnl_15d") or w.get("total_pnl") or "?"
-                            rank  = i + 1
-                            alert("LEADERBOARD-NEW",
-                                  f"New wallet in top {self.top_n} (rank #{rank}) | "
-                                  f"H={h} WR={wr} ROI={roi} PnL={pnl}",
-                                  {"wallet": addr, "rank": rank, "h_score": h,
-                                   "win_rate": wr, "roi": roi, "pnl": pnl})
-
+                    if not addr:
+                        continue
+                    current.add(addr)
+                    if self.seeded and addr not in self.known:
+                        h   = w.get("h_score", "?")
+                        wr  = w.get("win_rate_pct") or w.get("win_rate_15d") or "?"
+                        roi = w.get("roi_pct_15d") or w.get("roi_pct") or "?"
+                        pnl = w.get("total_pnl_15d") or w.get("total_pnl") or "?"
+                        alert(
+                            "LEADERBOARD-NEW",
+                            f"New wallet rank #{i+1} | H={h} WR={wr} ROI={roi} PnL={pnl} | {addr[:12]}...",
+                            tg_msg=(
+                                f"*NEW LEADERBOARD ENTRY* 📊\n"
+                                f"Rank #{i+1} / top {self.top_n}\n"
+                                f"H-Score: {h} | WR: {wr} | ROI: {roi}\n"
+                                f"PnL: ${float(pnl or 0):,.0f}\n"
+                                f"Wallet: `{addr}`"
+                            )
+                        )
                 if not self.seeded:
-                    print(f"  [LeaderboardWatcher] Seeded {len(current)} known wallets in top {self.top_n}")
+                    print(f"  [LeaderboardWatcher] Seeded {len(current)} wallets")
                     self.seeded = True
-
                 self.known = current
-
             except Exception as e:
                 print(f"  [LeaderboardWatcher] error: {e}")
             time.sleep(self.POLL_INTERVAL)
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
+# ── Entry point ─────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Polymarket whale alert monitor")
-    parser.add_argument("--whale",   type=float, default=50_000,
-                        help="Whale threshold: cumulative $ in one market/2h (default 50000)")
-    parser.add_argument("--new-pos", type=float, default=20_000,
-                        help="New position alert: single trade $ in sports market (default 20000)")
-    parser.add_argument("--top-n",  type=int,   default=20,
-                        help="Leaderboard top-N to watch (default 20)")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--whale",   type=float, default=50_000)
+    parser.add_argument("--new-pos", type=float, default=20_000)
+    parser.add_argument("--top-n",   type=int,   default=20)
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  POLYMARKET WHALE ALERT MONITOR")
-    print(f"  Method 1 — Whale buy:    >${args.whale:,.0f} in 2h window")
-    print(f"  Method 2 — New position: >${args.new_pos:,.0f} first trade")
-    print(f"  Method 3 — Leaderboard:  top {args.top_n} new entrants")
-    print(f"  Log file: {LOG_FILE}")
-    if os.getenv("WEBHOOK_URL"):
-        print(f"  Webhook:  {os.getenv('WEBHOOK_URL')[:40]}...")
+    print("  FALCON ALERT MONITOR")
+    print(f"  Method 1 — Cluster wallets: {len(CLUSTER)} tracked (60s poll)")
+    print(f"  Method 2 — Whale buy:       >${args.whale:,.0f} in 2h window")
+    print(f"  Method 3 — New position:    >${args.new_pos:,.0f} first trade")
+    print(f"  Method 4 — Leaderboard:     top {args.top_n} new entrants")
+    print(f"  Log: {LOG_FILE}")
+    tg_ok = bool(os.environ.get('TG_BOT_TOKEN')) and bool(os.environ.get('TG_CHAT_ID'))
+    print(f"  Telegram: {'ENABLED' if tg_ok else 'NOT SET (add TG_BOT_TOKEN + TG_CHAT_ID to .env)'}")
     print("=" * 60)
-    print()
 
-    scanner  = TradeScanner(whale_threshold=args.whale, new_pos_threshold=args.new_pos)
-    watcher  = LeaderboardWatcher(top_n=args.top_n)
+    if tg_ok:
+        tg.send("*Falcon monitor started* ✅\nWatching cluster + whale + leaderboard alerts.")
 
-    t1 = threading.Thread(target=scanner.run,  daemon=True, name="TradeScanner")
-    t2 = threading.Thread(target=watcher.run,  daemon=True, name="LeaderboardWatcher")
-
-    t1.start()
-    t2.start()
+    threads = [
+        threading.Thread(target=ClusterWatcher().run,                                      daemon=True, name="ClusterWatcher"),
+        threading.Thread(target=TradeScanner(args.whale, args.new_pos).run,                daemon=True, name="TradeScanner"),
+        threading.Thread(target=LeaderboardWatcher(args.top_n).run,                        daemon=True, name="LeaderboardWatcher"),
+    ]
+    for t in threads:
+        t.start()
 
     try:
         while True:
